@@ -199,6 +199,6 @@ if __name__ == '__main__':
     Server(
         address='0.0.0.0',
         port=8080,
-        db_url='postgresql://postgres:secret@localhost/payments',
+        db_url='postgresql://postgres:secret@postgres/payments',
         debug=False
     ).start()
