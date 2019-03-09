@@ -9,6 +9,11 @@ JSON запрос на адрес /api/v1/
 {"method": "registration", "data": {"name": "petrarka", "country": "Holland", "city": "Amsterdam"}}
 ```
 
+- Ввод денег в систему из внешней платежной системы
+```JSON
+{"method": "recharge", "user": "petrarka", "currency": "USD", "data": {"amount": 100}}
+```
+
 - Получение баланса
 ```JSON
 {"method": "balance", "user": "petrarka"}
@@ -16,7 +21,7 @@ JSON запрос на адрес /api/v1/
 
 - Перевод денег
 ```JSON
-{"method": "transfer", "from": "sergey", "to": "vasya", "currency": "USD", "data": {"amount": 1.5, "currency": "USD"}}
+{"method": "transfer", "from": "petrarka", "to": "vasya", "currency": "USD", "data": {"amount": 1.5, "currency": "USD"}}
 ```
 
 Отчет
