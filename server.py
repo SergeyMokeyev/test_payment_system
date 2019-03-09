@@ -1,4 +1,5 @@
 import enum
+import datetime
 import random
 
 import asyncpg
@@ -27,11 +28,12 @@ class Server(Service):
         self.__db_url = db_url
 
     async def run(self):
-        self.db = await asyncpg.connect(self.__db_url)
+        self.db = await asyncpg.connect(self.__db_url)  # todo здесь бы неплохо пул конектов
 
         app = web.Application()
         app.add_routes([
-            web.post('/api/v1/', self.api)
+            web.post('/api/v1/', self.api),
+            web.post('/reports/', self.reports)
         ])
         runner = web.AppRunner(app)
         await runner.setup()
@@ -51,17 +53,16 @@ class Server(Service):
             method = Methods(request_data.get('method'))
             data = request_data.get('data', {})
 
-            if method is not Methods.registration and method is not Methods.balance:  # todo с этим нужно что то делать
-                currency = request_data.get('currency')
-                if currency not in CURRENCIES:
-                    raise ValueError('Not allowed currency')
-
             if method is Methods.registration:
                 await self.db.execute("INSERT INTO users (name, country, city) VALUES ($1, $2, $3)",
                                       data.get('name'), data.get('country'), data.get('city'))
                 message = 'User registered'
 
             elif method is Methods.recharge:
+                currency = request_data.get('currency')
+                if currency not in CURRENCIES:
+                    raise ValueError('Not allowed currency')
+
                 user = await User.load(self.db, request_data.get('user'))
                 user.check_sign()
                 amount = data.get('amount', 0)
@@ -71,12 +72,21 @@ class Server(Service):
                 message = 'User balance was recharge'
 
             elif method is Methods.transfer:
+                currency = request_data.get('currency')
+                if currency not in CURRENCIES:
+                    raise ValueError('Not allowed currency')
+
                 amount = data.get('amount', 0)
                 from_user = await User.load(self.db, request_data.get('from'))
                 from_user.check_sign()
                 to_user = await User.load(self.db, request_data.get('to'))
 
-                # todo тут бум конвертировать валюту
+                # todo конвертировать валюту
+                # to_currency = data.get('currency')
+                # if to_currency != currency:
+                #     if to_currency not in CURRENCIES:
+                #         raise ValueError('Not allowed currency')
+                #     rate = self.get_rate_from_remote_system()[f'{currency}_{to_currency}']
 
                 out_tx = Tx(user_id=from_user.id, operation=Op.credit, currency=currency, amount=amount, db=self.db)
                 await out_tx.set_status(TxSt.processing)
@@ -104,18 +114,67 @@ class Server(Service):
             self.logger.exception(exc)
             return web.json_response({'result': False, 'error': 'Something was wrong'})
 
+    async def reports(self, request):
+        try:
+            request_data = await request.json()
+            user = await User.load(self.db, request_data.get('user'))
+            sql = "SELECT tx_id, date, balance, currency, operation  FROM balance WHERE user_id = $1 "
+            params = [user.id]
+
+            _to_file = request_data.get('to_file', False)
+
+            _from = datetime.datetime.fromtimestamp(request_data.get('from', 0))
+            if _from:
+                param = len(params) + 1
+                sql = sql + f"AND date >= ${param} "
+                params.append(_from)
+
+            _to = datetime.datetime.fromtimestamp(request_data.get('to', datetime.datetime.now().timestamp()))
+            if _to:
+                param = len(params) + 1
+                sql = sql + f"AND date <= ${param} "
+                params.append(_to)
+
+            result = []
+            for row in await self.db.fetch(sql, *params):
+                row = dict(row)
+                row['date'] = row['date'].timestamp()
+                result.append(row)
+
+            if _to_file:
+                # todo делаем файл из result  и отдаем клиенту
+                pass
+            else:
+                return web.json_response({'result': True, 'data': result})
+
+        except ValueError as exc:
+            return web.json_response({'result': False, 'error': str(exc)})
+
+        except Exception as exc:
+            self.logger.exception(exc)
+
     async def send_to_remote_system(self, tx):
-        # await self.loop.sleep(random.randint(1, 10))
-        # answer_for_remote_system = random.choice((True, False))
-        answer_for_remote_system = True
+        # Эмулируем внешнюю систему
+        # Отправляем запрос во внешнюю платежную систему на проведение операции ввода денег
+        await self.loop.sleep(random.randint(1, 10))
+        answer_for_remote_system = random.choice((True, False))
         if answer_for_remote_system:
+            # Если Процедура инециализирована то транзакцию в какой то пул и ждем результата транзакции из вне
             await tx.set_status(TxSt.processing)
-            # await self.loop.sleep(random.randint(1, 10))
-            # answer_for_remote_system = random.choice((True, False))
-            answer_for_remote_system = True
+            await self.loop.sleep(random.randint(1, 10))
+            answer_for_remote_system = random.choice((True, False))
             await tx.set_status(TxSt.accepted if answer_for_remote_system else TxSt.failed)
         else:
             await tx.set_status(TxSt.failed)
+
+    @staticmethod
+    def get_rate_from_remote_system():
+        rate = {
+            'USD_EUR': 2,
+            'USD_CAD': 3,
+            'USD_CNY': 10
+        }
+        return rate
 
 
 if __name__ == '__main__':

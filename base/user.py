@@ -30,8 +30,6 @@ class User:
 
         return balance
 
-
-
     @classmethod
     async def load(cls, db, name):
         data = await db.fetchrow("SELECT * FROM users WHERE name = $1", name)
