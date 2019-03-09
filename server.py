@@ -9,13 +9,14 @@ from base.user import User
 from base.transaction import Transaction as Tx, TransactionOperation as Op, TransactionStatus as TxSt
 
 
-CURRENCIES = ['USD', 'EUR', 'CAD', 'CNY']
+CURRENCIES = ['USD', 'EUR', 'CAD', 'CNY']  # todo вынести в настройки системы
 
 
 class Methods(enum.Enum):
     registration = 'registration'
     recharge = 'recharge'
     transfer = 'transfer'
+    balance = 'balance'
 
 
 class Server(Service):
@@ -50,7 +51,7 @@ class Server(Service):
             method = Methods(request_data.get('method'))
             data = request_data.get('data', {})
 
-            if method is not Methods.registration:
+            if method is not Methods.registration and method is not Methods.balance:  # todo с этим нужно что то делать
                 currency = request_data.get('currency')
                 if currency not in CURRENCIES:
                     raise ValueError('Not allowed currency')
@@ -75,6 +76,8 @@ class Server(Service):
                 from_user.check_sign()
                 to_user = await User.load(self.db, request_data.get('to'))
 
+                # todo тут бум конвертировать валюту
+
                 out_tx = Tx(user_id=from_user.id, operation=Op.credit, currency=currency, amount=amount, db=self.db)
                 await out_tx.set_status(TxSt.processing)
 
@@ -84,6 +87,11 @@ class Server(Service):
                 await in_tx.set_status(TxSt.accepted)
 
                 message = 'Transfer successful'
+
+            elif method is Methods.balance:
+                user = await User.load(self.db, request_data.get('user'))
+                user.check_sign()
+                message = await user.get_balance()
 
             response = {'result': True, 'message': message}
             self.logger.debug('Response to %s, data: %s', request.remote, response)
