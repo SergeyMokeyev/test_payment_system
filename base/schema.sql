@@ -1,5 +1,5 @@
-create database payments
-	with owner postgres;
+-- create database payments
+-- 	with owner postgres;
 
 create table users
 (

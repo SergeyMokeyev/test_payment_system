@@ -7,3 +7,16 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_PASSWORD: secret
+      POSTGRES_DB: payments
+    volumes:
+      - ./base/schema.sql:/docker-entrypoint-initdb.d/init.sql
+
+  server:
+    image: payments_server
+    build:
+      context: .
+    ports:
+      - "8080:8080"
+    entrypoint: python /opt/server/server.py
+    depends_on:
+      - postgres

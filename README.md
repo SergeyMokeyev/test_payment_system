@@ -1,5 +1,10 @@
 # test_payment_system
 
+Запуск в докере
+=
+
+Из корня проекта docker-compose build && docker-compose up
+
 API
 =
 JSON запрос на адрес /api/v1/

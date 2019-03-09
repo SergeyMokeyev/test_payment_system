@@ -28,7 +28,13 @@ class Server(Service):
         self.__db_url = db_url
 
     async def run(self):
-        self.db = await asyncpg.connect(self.__db_url)  # todo здесь бы неплохо пул конектов
+        while True:  # ждем postgres
+            try:
+                self.db = await asyncpg.connect(self.__db_url)  # todo здесь бы неплохо пул конектов
+                break
+            except Exception as exc:
+                self.logger.info('Wait postgresql connection')
+                await self.loop.sleep(2)
 
         app = web.Application()
         app.add_routes([
@@ -181,6 +187,6 @@ if __name__ == '__main__':
     Server(
         address='0.0.0.0',
         port=8080,
-        db_url='postgresql://postgres:secret@localhost/payments',
-        debug=True
+        db_url='postgresql://postgres:secret@postgres/payments',
+        debug=False
     ).start()
