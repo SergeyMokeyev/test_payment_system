@@ -87,19 +87,30 @@ class Server(Service):
                 from_user.check_sign()
                 to_user = await User.load(self.db, request_data.get('to'))
 
-                # todo конвертировать валюту
-                # to_currency = data.get('currency')
-                # if to_currency != currency:
-                #     if to_currency not in CURRENCIES:
-                #         raise ValueError('Not allowed currency')
-                #     rate = self.get_rate_from_remote_system()[f'{currency}_{to_currency}']
+                #### todo много думать
+                if currency != 'USD':
+                    rate = self.get_rate_from_remote_system()[f'USD_{currency}']
+                    _amount = amount / rate
+                else:
+                    _amount = amount
+
+                to_currency = data.get('currency')
+                if to_currency not in CURRENCIES:
+                    raise ValueError('Not allowed currency')
+                if to_currency != currency:
+                    rate = self.get_rate_from_remote_system()[f'USD_{to_currency}']
+                    converted_amount = _amount * rate
+                else:
+                    converted_amount = amount
+                ####
 
                 out_tx = Tx(user_id=from_user.id, operation=Op.credit, currency=currency, amount=amount, db=self.db)
                 await out_tx.set_status(TxSt.processing)
 
                 await out_tx.set_status(TxSt.accepted)
 
-                in_tx = Tx(user_id=to_user.id, operation=Op.debit, currency=currency, amount=amount, db=self.db)
+                in_tx = Tx(user_id=to_user.id, operation=Op.debit,
+                           currency=to_currency, amount=converted_amount, db=self.db)
                 await in_tx.set_status(TxSt.accepted)
 
                 message = 'Transfer successful'
@@ -176,6 +187,7 @@ class Server(Service):
     @staticmethod
     def get_rate_from_remote_system():
         rate = {
+            'USD_USD': 1,
             'USD_EUR': 2,
             'USD_CAD': 3,
             'USD_CNY': 10
@@ -187,6 +199,6 @@ if __name__ == '__main__':
     Server(
         address='0.0.0.0',
         port=8080,
-        db_url='postgresql://postgres:secret@postgres/payments',
+        db_url='postgresql://postgres:secret@localhost/payments',
         debug=False
     ).start()
